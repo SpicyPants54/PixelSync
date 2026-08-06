@@ -1,8 +1,6 @@
-from pathlib import Path
-
 from loguru import logger
 
-from app.core.config import load_config
+from app.core.settings import Settings
 from app.core.database import create_database
 from app.core.history import TransferHistory
 
@@ -14,31 +12,44 @@ from app.importer.folder_watcher import FolderWatcher
 from app.importer.processor import QueueProcessor
 from app.adb.device_monitor import DeviceMonitor
 
+
+
 class PixelSyncApp:
+
 
     def __init__(self):
 
-        self.config = load_config()
+        self.config = Settings()
 
         self.queue = TransferQueue()
 
-        self.adb = ADBManager()
+        self.adb = ADBManager(
+            self.config
+        )
+
 
         self.database = create_database(
             self.config.database_file
         )
 
+
         session = self.database()
+
 
         self.history = TransferHistory(
             session
         )
+
 
         self.transfer = None
 
         self.watcher = None
 
         self.processor = None
+
+        self.device_monitor = None
+
+
 
 
     def start(self):
@@ -48,53 +59,66 @@ class PixelSyncApp:
         )
 
 
-        #
-        # Start folder watcher
-        #
+
         self.watcher = FolderWatcher(
             self.config.import_folder,
             self.queue
         )
 
+
         self.watcher.start()
+
 
 
         #
         # Connect Pixel
         #
+
         self.adb.check_adb()
 
-        device = self.adb.connect()
+        self.adb.connect()
+
 
 
         logger.info(
-            f"Device model: {device}"
+            f"Device model: {self.adb.get_model()}"
         )
+
+
 
         self.device_monitor = DeviceMonitor(
-          self.adb
+            self.adb
         )
 
+
         self.device_monitor.start()
+
+
 
         #
         # Create transfer engine
         #
+
         self.transfer = TransferManager(
-            self.adb.device
+            self.adb,
+            self.config
         )
 
 
+
         #
-        # Start queue processor
+        # Start processor
         #
+
         self.processor = QueueProcessor(
             self.queue,
             self.transfer,
             self.history
         )
 
+
         self.processor.start()
+
 
 
         logger.info(
@@ -107,10 +131,9 @@ class PixelSyncApp:
         )
 
 
-        #
-        # Keep application alive
-        #
+
         import time
+
 
         while True:
 

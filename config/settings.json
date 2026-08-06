@@ -1,0 +1,19 @@
+{
+    "import_folder": "Pictures/PixelSync Import",
+    "pixel_destination": "/storage/emulated/0/DCIM/Camera/",
+    "database": "data/pixelsync.db",
+    "logging": {
+        "level": "INFO",
+        "file": "logs/pixelsync.log"
+    },
+    "transfer": {
+        "retry_count": 3,
+        "retry_delay_seconds": 5
+    },
+    "connection": {
+        "prefer_usb": true,
+        "wifi_fallback": true,
+        "wifi_address": "192.168.1.38",
+        "wifi_port": 5555
+    }
+}

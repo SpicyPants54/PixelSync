@@ -5,35 +5,59 @@ import time
 from loguru import logger
 
 
-MAX_RETRIES = 3
-RETRY_DELAY_SECONDS = 5
-
-
 class TransferManager:
 
-    def __init__(self, adb):
+    def __init__(self, adb, config):
 
         self.adb = adb
+        self.config = config
 
 
-    def push_file(self, file_path, destination):
+
+    def push_file(self, file_path):
 
         file_path = Path(file_path)
 
+        destination = self.config.pixel_folder
+
         attempt = 1
 
-        while attempt <= MAX_RETRIES:
+
+        while attempt <= self.config.retry_count:
+
+            device = self.adb.device
+
+
+            if not device:
+
+                logger.warning(
+                    "No Pixel connected. Transfer paused."
+                )
+
+                time.sleep(
+                    self.config.retry_delay
+                )
+
+                attempt += 1
+                continue
+
+
 
             logger.info(
                 f"Sending {file_path.name} "
-                f"(attempt {attempt}/{MAX_RETRIES})"
+                f"via {device} "
+                f"(attempt {attempt}/{self.config.retry_count})"
             )
+
+
 
             try:
 
                 result = subprocess.run(
                     [
                         "adb",
+                        "-s",
+                        device,
                         "push",
                         str(file_path),
                         destination
@@ -43,22 +67,28 @@ class TransferManager:
                 )
 
 
+
                 if result.returncode == 0:
 
                     logger.info(
                         f"Transfer complete: {file_path.name}"
                     )
 
+
                     self.scan_media(
+                        device,
                         destination + file_path.name
                     )
 
+
                     return True
+
 
 
                 logger.error(
                     result.stderr.strip()
                 )
+
 
 
             except Exception as error:
@@ -68,35 +98,43 @@ class TransferManager:
                 )
 
 
-            if attempt < MAX_RETRIES:
+
+            if attempt < self.config.retry_count:
 
                 logger.info(
-                    f"Retrying in {RETRY_DELAY_SECONDS} seconds..."
+                    f"Retrying in {self.config.retry_delay} seconds..."
                 )
 
+
                 time.sleep(
-                    RETRY_DELAY_SECONDS
+                    self.config.retry_delay
                 )
+
 
 
             attempt += 1
+
 
 
         logger.error(
             f"Transfer failed permanently: {file_path.name}"
         )
 
+
         return False
 
 
 
-    def scan_media(self, path):
+
+    def scan_media(self, device, path):
 
         try:
 
             subprocess.run(
                 [
                     "adb",
+                    "-s",
+                    device,
                     "shell",
                     "am",
                     "broadcast",
@@ -113,6 +151,7 @@ class TransferManager:
             logger.info(
                 f"Media scan triggered: {path}"
             )
+
 
 
         except Exception as error:

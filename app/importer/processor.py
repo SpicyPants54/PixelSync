@@ -96,7 +96,6 @@ class QueueProcessor:
 
                 success = self.transfer.push_file(
                     media,
-                    "/storage/emulated/0/DCIM/Camera/"
                 )
 
 

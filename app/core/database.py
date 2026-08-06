@@ -9,16 +9,29 @@ Base = declarative_base()
 
 def create_database(filename):
 
-    database_path = Path(filename)
+    database_path = Path(
+        filename
+    )
+
+
+    # Create parent folders if needed
+    if database_path.parent:
+
+        database_path.parent.mkdir(
+            parents=True,
+            exist_ok=True
+        )
+
 
     engine = create_engine(
         f"sqlite:///{database_path}"
     )
 
-    # Load models so SQLAlchemy knows the tables
-    from app.core import models
 
-    Base.metadata.create_all(engine)
+    Base.metadata.create_all(
+        engine
+    )
+
 
     return sessionmaker(
         bind=engine
