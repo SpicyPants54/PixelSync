@@ -1,0 +1,16 @@
+{
+    "devices": [
+        {
+            "serial": "HT8581A00764",
+            "last_transport": "wifi",
+            "last_seen": "2026-08-06T20:39:57.453115",
+            "wifi_address": "192.168.1.38"
+        },
+        {
+            "serial": "192.168.1.38:5555",
+            "wifi_address": "192.168.1.38",
+            "last_transport": "wifi",
+            "last_seen": "2026-08-06T20:23:23.962520"
+        }
+    ]
+}

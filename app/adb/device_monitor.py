@@ -11,10 +11,8 @@ class DeviceMonitor:
         self.adb = adb
         self.running = False
         self.thread = None
-
-        self.last_connected = False
         self.last_transport = None
-        self.last_model = None
+
 
 
     def start(self):
@@ -25,10 +23,12 @@ class DeviceMonitor:
 
         self.running = True
 
+
         self.thread = threading.Thread(
             target=self.run,
             daemon=True
         )
+
 
         self.thread.start()
 
@@ -38,59 +38,53 @@ class DeviceMonitor:
         )
 
 
+
     def run(self):
 
         while self.running:
 
             try:
 
-                connected = self.adb.is_connected()
+                # Always check USB first
+                usb_device = self.adb.get_usb_device()
 
 
-                if connected:
+                if usb_device:
 
-                    transport = self.adb.get_transport()
-                    model = self.adb.get_model()
-
-
-                    if not self.last_connected:
+                    if self.adb.device != usb_device:
 
                         logger.info(
-                            f"Pixel connected: {self.adb.device}"
+                            f"USB device detected, switching from {self.adb.device} to {usb_device}"
                         )
 
 
-                    if transport != self.last_transport:
-
-                        logger.info(
-                            f"Transport changed: {transport}"
-                        )
+                        self.adb.disconnect_wifi()
 
 
-                    if model and model != self.last_model:
-
-                        logger.info(
-                            f"Device model: {model}"
-                        )
+                        self.adb.device = usb_device
 
 
-                    self.last_connected = True
-                    self.last_transport = transport
-                    self.last_model = model
+                    self.report_device()
 
+                    time.sleep(10)
+                    continue
+
+
+
+                # No USB, keep current connection if alive
+                if self.adb.is_connected():
+
+                    self.report_device()
 
                 else:
 
-                    if self.last_connected:
+                    logger.warning(
+                        "Pixel disconnected"
+                    )
 
-                        logger.warning(
-                            "Pixel disconnected"
-                        )
-
-
-                    self.last_connected = False
 
                     self.adb.connect()
+
 
 
             except Exception as error:
@@ -103,10 +97,32 @@ class DeviceMonitor:
             time.sleep(10)
 
 
-    def stop(self):
 
-        self.running = False
+    def report_device(self):
+
+        transport = self.adb.get_transport()
+
+
+        if transport != self.last_transport:
+
+            logger.info(
+                f"Transport changed: {transport}"
+            )
+
+            self.last_transport = transport
+
+
 
         logger.info(
-            "Device monitor stopped"
+            f"Pixel connected: {self.adb.device}"
         )
+
+
+        model = self.adb.get_model()
+
+
+        if model:
+
+            logger.info(
+                f"Device model: {model}"
+            )

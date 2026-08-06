@@ -12,7 +12,9 @@ CONFIG_FILE = PROJECT_ROOT / "config" / "settings.json"
 class Settings:
 
     def __init__(self):
+
         self.load()
+
 
 
     def load(self):
@@ -38,6 +40,23 @@ class Settings:
         )
 
 
+
+    def save(self):
+
+        with open(
+            CONFIG_FILE,
+            "w",
+            encoding="utf-8"
+        ) as file:
+
+            json.dump(
+                self.data,
+                file,
+                indent=4
+            )
+
+
+
     @property
     def import_folder(self):
 
@@ -55,12 +74,14 @@ class Settings:
         return str(folder)
 
 
+
     @property
     def pixel_folder(self):
 
         return self.data[
             "pixel_destination"
         ]
+
 
 
     @property
@@ -84,25 +105,6 @@ class Settings:
         return str(database_path)
 
 
-    @property
-    def log_folder(self):
-
-        folder = (
-            PROJECT_ROOT
-            /
-            self.data.get(
-                "log_folder",
-                "logs"
-            )
-        )
-
-        folder.mkdir(
-            parents=True,
-            exist_ok=True
-        )
-
-        return str(folder)
-
 
     @property
     def retry_count(self):
@@ -110,10 +112,12 @@ class Settings:
         return self.data["transfer"]["retry_count"]
 
 
+
     @property
     def retry_delay(self):
 
         return self.data["transfer"]["retry_delay_seconds"]
+
 
 
     @property
@@ -128,6 +132,7 @@ class Settings:
         )
 
 
+
     @property
     def wifi_fallback(self):
 
@@ -138,6 +143,7 @@ class Settings:
             "wifi_fallback",
             False
         )
+
 
 
     @property
@@ -152,6 +158,7 @@ class Settings:
         )
 
 
+
     @property
     def wifi_address(self):
 
@@ -159,29 +166,28 @@ class Settings:
             "connection",
             {}
         ).get(
-            "wifi_address",
-            None
+            "wifi_address"
         )
 
 
-    def save_wifi_address(self, address):
+
+    def set_wifi_address(
+        self,
+        address
+    ):
 
         connection = self.data.setdefault(
             "connection",
             {}
         )
 
+
         connection["wifi_address"] = address
 
 
-        with open(
-            CONFIG_FILE,
-            "w",
-            encoding="utf-8"
-        ) as file:
+        self.save()
 
-            json.dump(
-                self.data,
-                file,
-                indent=4
-            )
+
+        logger.info(
+            f"Saved WiFi address: {address}"
+        )
