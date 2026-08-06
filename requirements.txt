@@ -1,0 +1,10 @@
+pyside6
+watchdog
+sqlalchemy
+pydantic
+loguru
+pillow
+piexif
+adbutils
+pytest
+pyinstaller

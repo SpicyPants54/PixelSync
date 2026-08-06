@@ -1,0 +1,21 @@
+[project]
+name = "pixelsync"
+version = "0.1.0"
+description = "Automatic iPhone to Pixel photo synchronization"
+requires-python = ">=3.12"
+
+dependencies = [
+    "pyside6",
+    "watchdog",
+    "sqlalchemy",
+    "pydantic",
+    "loguru",
+    "pillow",
+    "piexif",
+    "adbutils"
+]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests"
+]
