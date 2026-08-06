@@ -1,10 +1,17 @@
 from pathlib import Path
 
+from loguru import logger
+
 from app.core.config import load_config
-from app.core.logger import setup_logging
 from app.core.database import create_database
+from app.core.history import TransferHistory
+
 from app.adb.adb_manager import ADBManager
 from app.adb.transfer import TransferManager
+
+from app.importer.queue import TransferQueue
+from app.importer.folder_watcher import FolderWatcher
+from app.importer.processor import QueueProcessor
 
 
 class PixelSyncApp:
@@ -13,70 +20,93 @@ class PixelSyncApp:
 
         self.config = load_config()
 
-        self.logger = setup_logging(
-            self.config.log_folder
-        )
+        self.queue = TransferQueue()
+
+        self.adb = ADBManager()
 
         self.database = create_database(
             self.config.database_file
         )
 
-        self.adb = ADBManager()
+        session = self.database()
+
+        self.history = TransferHistory(
+            session
+        )
 
         self.transfer = None
+
+        self.watcher = None
+
+        self.processor = None
 
 
     def start(self):
 
-        self.logger.info(
+        logger.info(
             "PixelSync starting..."
         )
 
-        if self.adb.check_adb():
 
-            if self.adb.connect():
+        #
+        # Start folder watcher
+        #
+        self.watcher = FolderWatcher(
+            self.config.import_folder,
+            self.queue
+        )
 
-                model = self.adb.get_model()
-
-                self.logger.info(
-                    f"Device model: {model}"
-                )
-
-                self.transfer = TransferManager(
-                    self.adb.device
-                )
-
-                self.logger.info(
-                    "Transfer engine ready"
-                )
-
-                test_file = (
-                    Path.home()
-                    / "Pictures"
-                    / "PixelSync Import"
-                    / "test.jpg"
-                )
-
-                if test_file.exists():
-
-                    self.transfer.push_file(
-                        test_file,
-                        "/sdcard/DCIM/Camera/"
-                    )
-
-                else:
-
-                    self.logger.warning(
-                        f"Test file not found: {test_file}"
-                    )
-
-        else:
-
-            self.logger.error(
-                "ADB unavailable"
-            )
+        self.watcher.start()
 
 
-        self.logger.info(
+        #
+        # Connect Pixel
+        #
+        self.adb.check_adb()
+
+        device = self.adb.connect()
+
+
+        logger.info(
+            f"Device model: {device}"
+        )
+
+
+        #
+        # Create transfer engine
+        #
+        self.transfer = TransferManager(
+            self.adb.device
+        )
+
+
+        #
+        # Start queue processor
+        #
+        self.processor = QueueProcessor(
+            self.queue,
+            self.transfer,
+            self.history
+        )
+
+        self.processor.start()
+
+
+        logger.info(
+            "Transfer engine ready"
+        )
+
+
+        logger.info(
             "PixelSync ready"
         )
+
+
+        #
+        # Keep application alive
+        #
+        import time
+
+        while True:
+
+            time.sleep(60)

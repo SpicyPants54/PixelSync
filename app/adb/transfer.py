@@ -55,6 +55,46 @@ class TransferManager:
                 f"Transfer complete: {source.name}"
             )
 
+            self.scan_media(
+                destination
+            )
+
+            return True
+
+
+        logger.error(
+            result.stderr
+        )
+
+        return False
+
+
+    def scan_media(self, file_path):
+
+        result = subprocess.run(
+            [
+                "adb",
+                "-s",
+                self.device,
+                "shell",
+                "am",
+                "broadcast",
+                "-a",
+                "android.intent.action.MEDIA_SCANNER_SCAN_FILE",
+                "-d",
+                f"file://{file_path}"
+            ],
+            capture_output=True,
+            text=True
+        )
+
+
+        if result.returncode == 0:
+
+            logger.info(
+                f"Media scan triggered: {file_path}"
+            )
+
             return True
 
 
