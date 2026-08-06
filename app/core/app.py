@@ -12,7 +12,7 @@ from app.adb.transfer import TransferManager
 from app.importer.queue import TransferQueue
 from app.importer.folder_watcher import FolderWatcher
 from app.importer.processor import QueueProcessor
-
+from app.adb.device_monitor import DeviceMonitor
 
 class PixelSyncApp:
 
@@ -71,6 +71,11 @@ class PixelSyncApp:
             f"Device model: {device}"
         )
 
+        self.device_monitor = DeviceMonitor(
+          self.adb
+        )
+
+        self.device_monitor.start()
 
         #
         # Create transfer engine

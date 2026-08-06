@@ -1,105 +1,122 @@
 from pathlib import Path
 import subprocess
+import time
+
 from loguru import logger
+
+
+MAX_RETRIES = 3
+RETRY_DELAY_SECONDS = 5
 
 
 class TransferManager:
 
-    def __init__(self, device):
+    def __init__(self, adb):
 
-        self.device = device
+        self.adb = adb
 
 
-    def push_file(self, source, destination_folder):
+    def push_file(self, file_path, destination):
 
-        source = Path(source)
+        file_path = Path(file_path)
 
-        if not source.exists():
+        attempt = 1
+
+        while attempt <= MAX_RETRIES:
+
+            logger.info(
+                f"Sending {file_path.name} "
+                f"(attempt {attempt}/{MAX_RETRIES})"
+            )
+
+            try:
+
+                result = subprocess.run(
+                    [
+                        "adb",
+                        "push",
+                        str(file_path),
+                        destination
+                    ],
+                    capture_output=True,
+                    text=True
+                )
+
+
+                if result.returncode == 0:
+
+                    logger.info(
+                        f"Transfer complete: {file_path.name}"
+                    )
+
+                    self.scan_media(
+                        destination + file_path.name
+                    )
+
+                    return True
+
+
+                logger.error(
+                    result.stderr.strip()
+                )
+
+
+            except Exception as error:
+
+                logger.error(
+                    f"Transfer exception: {error}"
+                )
+
+
+            if attempt < MAX_RETRIES:
+
+                logger.info(
+                    f"Retrying in {RETRY_DELAY_SECONDS} seconds..."
+                )
+
+                time.sleep(
+                    RETRY_DELAY_SECONDS
+                )
+
+
+            attempt += 1
+
+
+        logger.error(
+            f"Transfer failed permanently: {file_path.name}"
+        )
+
+        return False
+
+
+
+    def scan_media(self, path):
+
+        try:
+
+            subprocess.run(
+                [
+                    "adb",
+                    "shell",
+                    "am",
+                    "broadcast",
+                    "-a",
+                    "android.intent.action.MEDIA_SCANNER_SCAN_FILE",
+                    "-d",
+                    f"file://{path}"
+                ],
+                capture_output=True,
+                text=True
+            )
+
+
+            logger.info(
+                f"Media scan triggered: {path}"
+            )
+
+
+        except Exception as error:
 
             logger.error(
-                f"File not found: {source}"
+                f"Media scan failed: {error}"
             )
-
-            return False
-
-
-        destination = (
-            destination_folder.rstrip("/")
-            + "/"
-            + source.name
-        )
-
-
-        logger.info(
-            f"Sending {source.name}"
-        )
-
-
-        result = subprocess.run(
-            [
-                "adb",
-                "-s",
-                self.device,
-                "push",
-                str(source),
-                destination
-            ],
-            capture_output=True,
-            text=True
-        )
-
-
-        if result.returncode == 0:
-
-            logger.info(
-                f"Transfer complete: {source.name}"
-            )
-
-            self.scan_media(
-                destination
-            )
-
-            return True
-
-
-        logger.error(
-            result.stderr
-        )
-
-        return False
-
-
-    def scan_media(self, file_path):
-
-        result = subprocess.run(
-            [
-                "adb",
-                "-s",
-                self.device,
-                "shell",
-                "am",
-                "broadcast",
-                "-a",
-                "android.intent.action.MEDIA_SCANNER_SCAN_FILE",
-                "-d",
-                f"file://{file_path}"
-            ],
-            capture_output=True,
-            text=True
-        )
-
-
-        if result.returncode == 0:
-
-            logger.info(
-                f"Media scan triggered: {file_path}"
-            )
-
-            return True
-
-
-        logger.error(
-            result.stderr
-        )
-
-        return False
