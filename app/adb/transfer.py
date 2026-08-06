@@ -13,6 +13,78 @@ class TransferManager:
         self.config = config
 
 
+    def wait_for_device_ready(self, device, timeout=10):
+
+        logger.info(
+            f"Checking ADB readiness: {device}"
+        )
+
+        start = time.time()
+
+
+        while time.time() - start < timeout:
+
+            result = subprocess.run(
+                [
+                    "adb",
+                    "-s",
+                    device,
+                    "get-state"
+                ],
+                capture_output=True,
+                text=True
+            )
+
+
+            if result.stdout.strip() == "device":
+
+                logger.info(
+                    f"ADB device ready: {device}"
+                )
+
+                return True
+
+
+            time.sleep(1)
+
+
+
+        logger.warning(
+            f"ADB device not ready: {device}"
+        )
+
+        return False
+
+
+
+    def refresh_connection(self):
+
+        old = self.adb.device
+
+
+        logger.warning(
+            f"Refreshing Pixel connection (old={old})"
+        )
+
+
+        if self.adb.connect():
+
+            logger.info(
+                f"Connection restored: {self.adb.device}"
+            )
+
+            return True
+
+
+
+        logger.error(
+            "Unable to restore Pixel connection"
+        )
+
+
+        return False
+
+
 
     def push_file(self, file_path):
 
@@ -23,9 +95,12 @@ class TransferManager:
         attempt = 1
 
 
+
         while attempt <= self.config.retry_count:
 
+
             device = self.adb.device
+
 
 
             if not device:
@@ -37,6 +112,15 @@ class TransferManager:
                 time.sleep(
                     self.config.retry_delay
                 )
+
+                attempt += 1
+                continue
+
+
+
+            if not self.wait_for_device_ready(device):
+
+                self.refresh_connection()
 
                 attempt += 1
                 continue
@@ -85,9 +169,22 @@ class TransferManager:
 
 
 
+                error = result.stderr.strip()
+
+
                 logger.error(
-                    result.stderr.strip()
+                    f"ADB transfer failed: {error}"
                 )
+
+
+
+                if "device" in error.lower():
+
+                    logger.warning(
+                        "Lost Pixel connection during transfer"
+                    )
+
+                    self.refresh_connection()
 
 
 
@@ -111,7 +208,6 @@ class TransferManager:
                 )
 
 
-
             attempt += 1
 
 
@@ -122,7 +218,6 @@ class TransferManager:
 
 
         return False
-
 
 
 

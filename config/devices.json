@@ -2,8 +2,8 @@
     "devices": [
         {
             "serial": "HT8581A00764",
-            "last_transport": "wifi",
-            "last_seen": "2026-08-06T20:39:57.453115",
+            "last_transport": "usb",
+            "last_seen": "2026-08-06T20:53:04.111596",
             "wifi_address": "192.168.1.38"
         },
         {

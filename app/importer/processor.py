@@ -56,6 +56,7 @@ class QueueProcessor:
             if not file:
 
                 time.sleep(1)
+
                 continue
 
 
@@ -129,8 +130,14 @@ class QueueProcessor:
 
 
                     logger.info(
-                        f"Recorded transfer telemetry: "
-                        f"{self.transfer.adb.device} "
-                        f"{self.transfer.adb.get_transport()} "
+                        "Transfer recorded: "
+                        f"{media.name} "
                         f"{duration:.2f}s"
+                    )
+
+
+                else:
+
+                    logger.warning(
+                        f"Transfer deferred: {media.name}"
                     )
