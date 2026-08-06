@@ -3,9 +3,11 @@ from app.core.models import Transfer
 
 class TransferHistory:
 
+
     def __init__(self, session):
 
         self.session = session
+
 
 
     def exists(self, file_hash):
@@ -18,19 +20,27 @@ class TransferHistory:
         )
 
 
+
     def add(
         self,
         filename,
         file_hash,
-        size
+        size,
+        device=None,
+        transport=None,
+        duration=None
     ):
 
         record = Transfer(
             filename=filename,
             file_hash=file_hash,
             file_size=size,
-            status="complete"
+            status="complete",
+            device=device,
+            transport=transport,
+            duration=duration
         )
+
 
         self.session.add(record)
 

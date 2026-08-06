@@ -28,6 +28,7 @@ class QueueProcessor:
         self.running = False
 
 
+
     def start(self):
 
         self.running = True
@@ -44,11 +45,13 @@ class QueueProcessor:
         )
 
 
+
     def run(self):
 
         while self.running:
 
             file = self.queue.get_next()
+
 
             if not file:
 
@@ -56,13 +59,14 @@ class QueueProcessor:
                 continue
 
 
+
             logger.info(
                 f"Processing: {file.name}"
             )
 
 
-            # Allow companion files to arrive
             time.sleep(5)
+
 
 
             bundle = build_bundle(
@@ -74,6 +78,7 @@ class QueueProcessor:
             logger.info(
                 f"Bundle size: {len(bundle)}"
             )
+
 
 
             for media in bundle:
@@ -94,15 +99,38 @@ class QueueProcessor:
                     continue
 
 
+
+                start_time = time.time()
+
+
                 success = self.transfer.push_file(
-                    media,
+                    media
                 )
+
+
+                duration = (
+                    time.time()
+                    -
+                    start_time
+                )
+
 
 
                 if success:
 
                     self.history.add(
-                        media.name,
-                        file_hash,
-                        media.stat().st_size
+                        filename=media.name,
+                        file_hash=file_hash,
+                        size=media.stat().st_size,
+                        device=self.transfer.adb.device,
+                        transport=self.transfer.adb.get_transport(),
+                        duration=duration
+                    )
+
+
+                    logger.info(
+                        f"Recorded transfer telemetry: "
+                        f"{self.transfer.adb.device} "
+                        f"{self.transfer.adb.get_transport()} "
+                        f"{duration:.2f}s"
                     )

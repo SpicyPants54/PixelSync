@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, Float
+
 from datetime import datetime
 
 from app.core.database import Base
@@ -8,15 +9,18 @@ class Transfer(Base):
 
     __tablename__ = "transfers"
 
+
     id = Column(
         Integer,
         primary_key=True
     )
 
+
     filename = Column(
         String,
         nullable=False
     )
+
 
     file_hash = Column(
         String,
@@ -24,17 +28,33 @@ class Transfer(Base):
         nullable=False
     )
 
+
     file_size = Column(
         Integer
     )
+
 
     status = Column(
         String
     )
 
+
+    device = Column(
+        String
+    )
+
+
+    transport = Column(
+        String
+    )
+
+
+    duration = Column(
+        Float
+    )
+
+
     transferred_at = Column(
         DateTime,
         default=datetime.utcnow
     )
-    
- 
