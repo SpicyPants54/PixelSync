@@ -1,7 +1,10 @@
+from pathlib import Path
+
 from app.core.config import load_config
 from app.core.logger import setup_logging
 from app.core.database import create_database
 from app.adb.adb_manager import ADBManager
+from app.adb.transfer import TransferManager
 
 
 class PixelSyncApp:
@@ -20,6 +23,8 @@ class PixelSyncApp:
 
         self.adb = ADBManager()
 
+        self.transfer = None
+
 
     def start(self):
 
@@ -37,10 +42,40 @@ class PixelSyncApp:
                     f"Device model: {model}"
                 )
 
+                self.transfer = TransferManager(
+                    self.adb.device
+                )
+
+                self.logger.info(
+                    "Transfer engine ready"
+                )
+
+                test_file = (
+                    Path.home()
+                    / "Pictures"
+                    / "PixelSync Import"
+                    / "test.jpg"
+                )
+
+                if test_file.exists():
+
+                    self.transfer.push_file(
+                        test_file,
+                        "/sdcard/DCIM/Camera/"
+                    )
+
+                else:
+
+                    self.logger.warning(
+                        f"Test file not found: {test_file}"
+                    )
+
         else:
+
             self.logger.error(
                 "ADB unavailable"
             )
+
 
         self.logger.info(
             "PixelSync ready"
