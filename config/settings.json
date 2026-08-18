@@ -15,5 +15,12 @@
         "wifi_fallback": true,
         "wifi_address": "192.168.1.38",
         "wifi_port": 5555
+    },
+    "photo_organization": {
+        "enabled": false,
+        "my_folder": "Pictures/PixelSync/Mine",
+        "wife_folder": "Pictures/PixelSync/Wife",
+        "other_folder": "Pictures/PixelSync/Other",
+        "organize_unknown": true
     }
 }

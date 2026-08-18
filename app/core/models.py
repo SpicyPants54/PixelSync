@@ -58,3 +58,58 @@ class Transfer(Base):
         DateTime,
         default=datetime.utcnow
     )
+
+
+
+class TransferJob(Base):
+
+    __tablename__ = "transfer_jobs"
+
+
+    id = Column(
+        Integer,
+        primary_key=True
+    )
+
+
+    filepath = Column(
+        String,
+        nullable=False
+    )
+
+
+    filename = Column(
+        String,
+        nullable=False
+    )
+
+
+    file_hash = Column(
+        String,
+        unique=True
+    )
+
+
+    status = Column(
+        String,
+        default="pending"
+    )
+
+
+    attempts = Column(
+        Integer,
+        default=0
+    )
+
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
+    )
+
+
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
+    )

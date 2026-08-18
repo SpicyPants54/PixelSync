@@ -3,14 +3,16 @@ from loguru import logger
 from app.core.settings import Settings
 from app.core.database import create_database
 from app.core.history import TransferHistory
+from app.core.events import TransferEvents
+from app.core.transfer_state import TransferState
 
 from app.adb.adb_manager import ADBManager
 from app.adb.transfer import TransferManager
+from app.adb.device_monitor import DeviceMonitor
 
 from app.importer.queue import TransferQueue
 from app.importer.folder_watcher import FolderWatcher
 from app.importer.processor import QueueProcessor
-from app.adb.device_monitor import DeviceMonitor
 
 
 
@@ -21,33 +23,92 @@ class PixelSyncApp:
 
         self.config = Settings()
 
-        self.queue = TransferQueue()
+
+        #
+        # Database
+        #
+
+        self.database = create_database(
+            self.config.database_file
+        )
+
+        self.session = self.database()
+
+
+
+        #
+        # Event system
+        #
+
+        self.events = TransferEvents()
+
+
+        #
+        # Transfer state
+        #
+
+        self.state = TransferState()
+
+
+
+        #
+        # Queue / History
+        #
+
+        self.queue = TransferQueue(
+            self.session
+        )
+
+
+        self.history = TransferHistory(
+            self.session
+        )
+
+
+
+        #
+        # ADB
+        #
 
         self.adb = ADBManager(
             self.config
         )
 
 
-        self.database = create_database(
-            self.config.database_file
-        )
-
-
-        session = self.database()
-
-
-        self.history = TransferHistory(
-            session
-        )
-
 
         self.transfer = None
-
         self.watcher = None
-
         self.processor = None
-
         self.device_monitor = None
+
+
+
+        #
+        # Event bindings
+        #
+
+        self.events.subscribe(
+            "started",
+            self.on_transfer_started
+        )
+
+
+        self.events.subscribe(
+            "progress",
+            self.on_transfer_progress
+        )
+
+
+        self.events.subscribe(
+            "finished",
+            self.on_transfer_finished
+        )
+
+
+        self.events.subscribe(
+            "failed",
+            self.on_transfer_failed
+        )
 
 
 
@@ -71,13 +132,12 @@ class PixelSyncApp:
 
 
         #
-        # Connect Pixel
+        # Pixel connection
         #
 
         self.adb.check_adb()
 
         self.adb.connect()
-
 
 
         logger.info(
@@ -96,18 +156,19 @@ class PixelSyncApp:
 
 
         #
-        # Create transfer engine
+        # Transfer engine
         #
 
         self.transfer = TransferManager(
             self.adb,
-            self.config
+            self.config,
+            self.events
         )
 
 
 
         #
-        # Start processor
+        # Queue processor
         #
 
         self.processor = QueueProcessor(
@@ -138,3 +199,120 @@ class PixelSyncApp:
         while True:
 
             time.sleep(60)
+
+
+
+
+
+    #
+    # Event handlers
+    #
+
+
+    def on_transfer_started(
+        self,
+        **data
+    ):
+
+        filename = data.get(
+            "filename"
+        )
+
+
+        logger.info(
+            f"[STATE] Starting: {filename}"
+        )
+
+
+        self.state.start(
+            filename=filename,
+            device=data.get(
+                "device",
+                ""
+            ),
+            total_bytes=data.get(
+                "size",
+                0
+            )
+        )
+
+
+
+
+    def on_transfer_progress(
+        self,
+        **data
+    ):
+
+        filename = data.get(
+            "filename"
+        )
+
+
+        self.state.update(
+            filename=filename,
+            transferred_bytes=data.get(
+                "transferred",
+                0
+            ),
+            percent=data.get(
+                "percent",
+                0
+            ),
+            speed_mbps=data.get(
+                "speed",
+                0
+            ),
+            eta_seconds=data.get(
+                "eta",
+                0
+            )
+        )
+
+
+
+
+    def on_transfer_finished(
+        self,
+        **data
+    ):
+
+        filename = data.get(
+            "filename"
+        )
+
+
+        logger.info(
+            f"[STATE] Finished: {filename}"
+        )
+
+
+        self.state.finish(
+            filename
+        )
+
+
+
+
+    def on_transfer_failed(
+        self,
+        **data
+    ):
+
+        filename = data.get(
+            "filename"
+        )
+
+
+        logger.warning(
+            f"[STATE] Failed: {filename}"
+        )
+
+
+        self.state.fail(
+            filename,
+            data.get(
+                "error",
+                ""
+            )
+        )

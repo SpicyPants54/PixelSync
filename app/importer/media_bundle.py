@@ -5,35 +5,50 @@ class MediaBundle:
 
     def __init__(
         self,
-        files
+        files=None
     ):
 
-        self.files = [
-            Path(file)
-            for file in files
-        ]
+        self._files = []
+
+        if files:
+
+            for file in files:
+
+                self._files.append(
+                    Path(file)
+                )
 
 
-    def add(self, file):
+    def files(self):
+
+        return list(
+            self._files
+        )
+
+
+    def add(
+        self,
+        file
+    ):
 
         file = Path(file)
 
-        if file not in self.files:
+        if file not in self._files:
 
-            self.files.append(
+            self._files.append(
                 file
             )
-
-
-    def __iter__(self):
-
-        return iter(
-            self.files
-        )
 
 
     def __len__(self):
 
         return len(
-            self.files
+            self._files
+        )
+
+
+    def __iter__(self):
+
+        return iter(
+            self._files
         )

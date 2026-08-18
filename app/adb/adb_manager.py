@@ -1,3 +1,4 @@
+from pathlib import Path
 import subprocess
 
 from loguru import logger
@@ -7,36 +8,74 @@ from app.adb.device_store import DeviceStore
 
 class ADBManager:
 
-    def __init__(self, config):
+    def __init__(
+        self,
+        config
+    ):
 
         self.config = config
         self.device = None
         self.device_store = DeviceStore()
 
+        # PixelSync ships with its own copy of ADB.
+        # Keep ADB completely independent of the user's PATH.
+        self.adb_path = (
+            Path(__file__).resolve()
+            .parents[2]
+            / "tools"
+            / "adb"
+            / "adb.exe"
+        )
 
+        if not self.adb_path.exists():
+
+            logger.error(
+                f"Bundled ADB not found: "
+                f"{self.adb_path}"
+            )
+
+        else:
+
+            logger.debug(
+                f"Using bundled ADB: "
+                f"{self.adb_path}"
+            )
 
     def check_adb(self):
 
         try:
 
+            if not self.adb_path.exists():
+
+                logger.error(
+                    f"Bundled ADB executable not found: "
+                    f"{self.adb_path}"
+                )
+
+                return False
+
             result = subprocess.run(
                 [
-                    "adb",
+                    str(self.adb_path),
                     "version"
                 ],
                 capture_output=True,
                 text=True
             )
 
-
             if result.returncode == 0:
 
                 logger.info(
-                    "ADB detected"
+                    f"ADB detected: "
+                    f"{self.adb_path}"
                 )
 
                 return True
 
+            logger.error(
+                f"ADB check failed: "
+                f"{result.stderr.strip()}"
+            )
 
         except Exception as error:
 
@@ -44,10 +83,7 @@ class ADBManager:
                 f"ADB error: {error}"
             )
 
-
         return False
-
-
 
     def get_devices(self):
 
@@ -55,13 +91,12 @@ class ADBManager:
 
             result = subprocess.run(
                 [
-                    "adb",
+                    str(self.adb_path),
                     "devices"
                 ],
                 capture_output=True,
                 text=True
             )
-
 
         except Exception as error:
 
@@ -71,9 +106,7 @@ class ADBManager:
 
             return []
 
-
         devices = []
-
 
         for line in result.stdout.splitlines():
 
@@ -83,15 +116,11 @@ class ADBManager:
 
                 devices.append(serial)
 
-
         return devices
-
-
 
     def get_usb_device(self):
 
         devices = self.get_devices()
-
 
         for device in devices:
 
@@ -99,15 +128,11 @@ class ADBManager:
 
                 return device
 
-
         return None
-
-
 
     def connect(self):
 
         usb_device = self.get_usb_device()
-
 
         #
         # USB always wins
@@ -116,24 +141,18 @@ class ADBManager:
 
             self.device = usb_device
 
-
             self.device_store.update_device(
                 serial=usb_device,
                 transport="usb"
             )
 
-
             logger.info(
                 f"Using USB Pixel: {usb_device}"
             )
 
-
             self.learn_wifi_address()
 
-
             return True
-
-
 
         #
         # WiFi fallback
@@ -142,19 +161,13 @@ class ADBManager:
 
             return self.connect_wifi()
 
-
-
         self.device = None
-
 
         logger.warning(
             "No Pixel device found"
         )
 
-
         return False
-
-
 
     def connect_wifi(self):
 
@@ -166,31 +179,37 @@ class ADBManager:
 
             return False
 
-
-
         address = (
             f"{self.config.wifi_address}:"
             f"{self.config.wifi_port}"
         )
 
+        try:
 
-        result = subprocess.run(
-            [
-                "adb",
-                "connect",
-                address
-            ],
-            capture_output=True,
-            text=True
-        )
+            result = subprocess.run(
+                [
+                    str(self.adb_path),
+                    "connect",
+                    address
+                ],
+                capture_output=True,
+                text=True
+            )
 
+        except Exception as error:
+
+            logger.error(
+                f"WiFi ADB connection failed: "
+                f"{error}"
+            )
+
+            return False
 
         output = (
             result.stdout.lower()
             +
             result.stderr.lower()
         )
-
 
         if (
             "connected" in output
@@ -200,11 +219,9 @@ class ADBManager:
 
             self.device = address
 
-
             stored = self.device_store.find_by_wifi(
                 self.config.wifi_address
             )
-
 
             if stored:
 
@@ -216,32 +233,24 @@ class ADBManager:
 
                 serial = address
 
-
-
             self.device_store.update_device(
                 serial=serial,
                 wifi_address=self.config.wifi_address,
                 transport="wifi"
             )
 
-
             logger.info(
                 f"Using WiFi Pixel: {address}"
             )
 
-
             return True
 
-
-
         logger.warning(
-            "WiFi Pixel connection failed"
+            f"WiFi Pixel connection failed: "
+            f"{result.stderr.strip() or result.stdout.strip()}"
         )
 
-
         return False
-
-
 
     def disconnect_wifi(self):
 
@@ -249,17 +258,15 @@ class ADBManager:
 
             return
 
-
         if ":" not in self.device:
 
             return
-
 
         try:
 
             subprocess.run(
                 [
-                    "adb",
+                    str(self.adb_path),
                     "disconnect",
                     self.device
                 ],
@@ -267,11 +274,10 @@ class ADBManager:
                 text=True
             )
 
-
             logger.info(
-                f"Disconnected WiFi Pixel: {self.device}"
+                f"Disconnected WiFi Pixel: "
+                f"{self.device}"
             )
-
 
         except Exception as error:
 
@@ -279,19 +285,15 @@ class ADBManager:
                 f"WiFi disconnect failed: {error}"
             )
 
-
-
     def is_connected(self):
 
         devices = self.get_devices()
 
-
         return (
             self.device is not None
-            and self.device in devices
+            and
+            self.device in devices
         )
-
-
 
     def get_model(self):
 
@@ -299,24 +301,31 @@ class ADBManager:
 
             return None
 
+        try:
 
-        result = subprocess.run(
-            [
-                "adb",
-                "-s",
-                self.device,
-                "shell",
-                "getprop",
-                "ro.product.model"
-            ],
-            capture_output=True,
-            text=True
-        )
+            result = subprocess.run(
+                [
+                    str(self.adb_path),
+                    "-s",
+                    self.device,
+                    "shell",
+                    "getprop",
+                    "ro.product.model"
+                ],
+                capture_output=True,
+                text=True
+            )
 
+            return result.stdout.strip()
 
-        return result.stdout.strip()
+        except Exception as error:
 
+            logger.error(
+                f"Unable to get device model: "
+                f"{error}"
+            )
 
+            return None
 
     def get_transport(self):
 
@@ -324,15 +333,11 @@ class ADBManager:
 
             return None
 
-
         if ":" in self.device:
 
             return "wifi"
 
-
         return "usb"
-
-
 
     def learn_wifi_address(self):
 
@@ -340,12 +345,11 @@ class ADBManager:
 
             return False
 
-
         try:
 
             result = subprocess.run(
                 [
-                    "adb",
+                    str(self.adb_path),
                     "-s",
                     self.device,
                     "shell",
@@ -358,7 +362,6 @@ class ADBManager:
                 text=True
             )
 
-
             for line in result.stdout.splitlines():
 
                 if "inet " in line:
@@ -369,12 +372,9 @@ class ADBManager:
                         .split("/")[0]
                     )
 
-
                     if not ip.startswith("192."):
 
                         continue
-
-
 
                     if self.config.wifi_address != ip:
 
@@ -382,11 +382,9 @@ class ADBManager:
                             ip
                         )
 
-
                         logger.info(
                             f"Saved WiFi Pixel address: {ip}"
                         )
-
 
                     self.device_store.update_device(
                         serial=self.device,
@@ -394,16 +392,12 @@ class ADBManager:
                         transport="usb"
                     )
 
-
                     return True
-
-
 
         except Exception as error:
 
             logger.error(
                 f"WiFi learning failed: {error}"
             )
-
 
         return False

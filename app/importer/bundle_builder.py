@@ -3,7 +3,10 @@ from pathlib import Path
 from app.importer.media_bundle import MediaBundle
 
 
-def build_bundle(file, folder):
+def build_bundle(
+    file,
+    folder
+):
 
     file = Path(file)
 
