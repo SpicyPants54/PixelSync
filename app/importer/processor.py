@@ -151,6 +151,44 @@ class QueueProcessor:
 
         return destination
 
+    def get_device(self):
+
+        try:
+
+            return (
+                self.transfer.adb.device
+                or
+                ""
+            )
+
+        except Exception as error:
+
+            logger.debug(
+                f"Unable to determine device: "
+                f"{error}"
+            )
+
+            return ""
+
+    def get_transport(self):
+
+        try:
+
+            return (
+                self.transfer.adb.get_transport()
+                or
+                ""
+            )
+
+        except Exception as error:
+
+            logger.debug(
+                f"Unable to determine transport: "
+                f"{error}"
+            )
+
+            return ""
+
     def process_file(
         self,
         file
@@ -242,6 +280,40 @@ class QueueProcessor:
                 f"{destination}"
             )
 
+            device = self.get_device()
+
+            transport = self.get_transport()
+
+            file_size = (
+                media.stat().st_size
+            )
+
+            #
+            # Mark the transfer as active before
+            # attempting the ADB transfer.
+            #
+
+            history_started = (
+                self.history.start(
+                    filename=media.name,
+                    file_hash=file_hash,
+                    size=file_size,
+                    device=device,
+                    transport=transport
+                )
+            )
+
+            if not history_started:
+
+                logger.error(
+                    f"Unable to start transfer "
+                    f"history for: {media.name}"
+                )
+
+                failed = True
+
+                continue
+
             start_time = time.time()
 
             try:
@@ -262,6 +334,14 @@ class QueueProcessor:
 
                 success = False
 
+                transfer_error = str(
+                    error
+                )
+
+            else:
+
+                transfer_error = ""
+
             duration = (
                 time.time()
                 -
@@ -270,45 +350,59 @@ class QueueProcessor:
 
             if success:
 
-                try:
+                #
+                # Read the current connection details
+                # again in case the connection changed
+                # during the transfer.
+                #
 
-                    device = (
-                        self.transfer.adb.device
+                device = self.get_device()
+
+                transport = self.get_transport()
+
+                recorded = (
+                    self.history.add(
+                        filename=media.name,
+                        file_hash=file_hash,
+                        size=file_size,
+                        device=device,
+                        transport=transport,
+                        duration=duration
                     )
-
-                except Exception:
-
-                    device = ""
-
-                try:
-
-                    transport = (
-                        self.transfer.adb
-                        .get_transport()
-                    )
-
-                except Exception:
-
-                    transport = ""
-
-                self.history.add(
-                    filename=media.name,
-                    file_hash=file_hash,
-                    size=media.stat().st_size,
-                    device=device,
-                    transport=transport,
-                    duration=duration
                 )
 
-                logger.info(
-                    f"Transfer recorded: "
-                    f"{media.name} "
-                    f"{duration:.2f}s"
-                )
+                if recorded:
+
+                    logger.info(
+                        f"Transfer recorded: "
+                        f"{media.name} "
+                        f"{duration:.2f}s"
+                    )
+
+                else:
+
+                    logger.error(
+                        f"Transfer succeeded but "
+                        f"history could not be "
+                        f"recorded: {media.name}"
+                    )
+
+                    failed = True
 
             else:
 
                 failed = True
+
+                if not transfer_error:
+
+                    transfer_error = (
+                        "Transfer failed"
+                    )
+
+                self.history.mark_failed(
+                    file_hash=file_hash,
+                    error=transfer_error
+                )
 
                 logger.error(
                     f"Transfer failed: "

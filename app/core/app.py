@@ -1,3 +1,5 @@
+import time
+
 from loguru import logger
 
 from app.core.settings import Settings
@@ -15,9 +17,7 @@ from app.importer.folder_watcher import FolderWatcher
 from app.importer.processor import QueueProcessor
 
 
-
 class PixelSyncApp:
-
 
     def __init__(self):
 
@@ -35,7 +35,6 @@ class PixelSyncApp:
         self.session = self.database()
 
 
-
         #
         # Event system
         #
@@ -44,11 +43,14 @@ class PixelSyncApp:
 
 
         #
-        # Transfer state
+        # Application state
         #
 
         self.state = TransferState()
 
+        self.state.set_app_status(
+            "starting"
+        )
 
 
         #
@@ -59,11 +61,9 @@ class PixelSyncApp:
             self.session
         )
 
-
         self.history = TransferHistory(
             self.session
         )
-
 
 
         #
@@ -75,12 +75,10 @@ class PixelSyncApp:
         )
 
 
-
         self.transfer = None
         self.watcher = None
         self.processor = None
         self.device_monitor = None
-
 
 
         #
@@ -92,25 +90,20 @@ class PixelSyncApp:
             self.on_transfer_started
         )
 
-
         self.events.subscribe(
             "progress",
             self.on_transfer_progress
         )
-
 
         self.events.subscribe(
             "finished",
             self.on_transfer_finished
         )
 
-
         self.events.subscribe(
             "failed",
             self.on_transfer_failed
         )
-
-
 
 
     def start(self):
@@ -120,15 +113,16 @@ class PixelSyncApp:
         )
 
 
+        #
+        # Folder watcher
+        #
 
         self.watcher = FolderWatcher(
             self.config.import_folder,
             self.queue
         )
 
-
         self.watcher.start()
-
 
 
         #
@@ -140,19 +134,28 @@ class PixelSyncApp:
         self.adb.connect()
 
 
+        device_model = self.adb.get_model()
+
+
         logger.info(
-            f"Device model: {self.adb.get_model()}"
+            f"Device model: {device_model}"
         )
 
 
+        #
+        # Update initial device state
+        #
 
-        self.device_monitor = DeviceMonitor(
-            self.adb
+        self.update_device_state(
+            connected=self.adb.is_connected(),
+            serial=getattr(
+                self.adb,
+                "device",
+                ""
+            ),
+            model=device_model or "",
+            transport=self.adb.get_transport() or ""
         )
-
-
-        self.device_monitor.start()
-
 
 
         #
@@ -166,6 +169,18 @@ class PixelSyncApp:
         )
 
 
+        #
+        # Device monitor
+        #
+
+        self.device_monitor = DeviceMonitor(
+            self.adb,
+            callback=self.update_device_state,
+            transfer=self.transfer
+        )
+
+        self.device_monitor.start()
+
 
         #
         # Queue processor
@@ -177,9 +192,12 @@ class PixelSyncApp:
             self.history
         )
 
-
         self.processor.start()
 
+
+        self.state.set_app_status(
+            "ready"
+        )
 
 
         logger.info(
@@ -192,22 +210,45 @@ class PixelSyncApp:
         )
 
 
-
-        import time
-
+        #
+        # Keep application running
+        #
 
         while True:
 
-            time.sleep(60)
+            time.sleep(
+                60
+            )
 
 
+    #
+    # Device state handler
+    #
 
+    def update_device_state(
+        self,
+        connected,
+        serial="",
+        model="",
+        transport=""
+    ):
+
+        if connected:
+
+            self.state.device_connected(
+                serial=serial,
+                model=model,
+                transport=transport
+            )
+
+        else:
+
+            self.state.device_disconnected()
 
 
     #
     # Event handlers
     #
-
 
     def on_transfer_started(
         self,
@@ -235,8 +276,6 @@ class PixelSyncApp:
                 0
             )
         )
-
-
 
 
     def on_transfer_progress(
@@ -270,8 +309,6 @@ class PixelSyncApp:
         )
 
 
-
-
     def on_transfer_finished(
         self,
         **data
@@ -290,8 +327,6 @@ class PixelSyncApp:
         self.state.finish(
             filename
         )
-
-
 
 
     def on_transfer_failed(

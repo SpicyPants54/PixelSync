@@ -7,16 +7,28 @@ class TransferEvents:
 
     def __init__(self):
 
-        self._listeners = defaultdict(list)
+        self._listeners = defaultdict(
+            list
+        )
 
         logger.info(
             "TransferEvents initialized"
         )
 
 
-    def subscribe(self, event_name, callback):
+    def subscribe(
+        self,
+        event_name,
+        callback
+    ):
 
-        self._listeners[event_name].append(callback)
+        if callback not in self._listeners[event_name]:
+
+            self._listeners[
+                event_name
+            ].append(
+                callback
+            )
 
         logger.info(
             f"Subscribed '{callback.__name__}' "
@@ -25,11 +37,19 @@ class TransferEvents:
         )
 
 
-    def unsubscribe(self, event_name, callback):
+    def unsubscribe(
+        self,
+        event_name,
+        callback
+    ):
 
         if callback in self._listeners[event_name]:
 
-            self._listeners[event_name].remove(callback)
+            self._listeners[
+                event_name
+            ].remove(
+                callback
+            )
 
             logger.info(
                 f"Unsubscribed '{callback.__name__}' "
@@ -37,10 +57,17 @@ class TransferEvents:
             )
 
 
-    def emit(self, event_name, **data):
+    def emit(
+        self,
+        event_name,
+        **data
+    ):
 
         listeners = list(
-            self._listeners.get(event_name, [])
+            self._listeners.get(
+                event_name,
+                []
+            )
         )
 
         logger.info(
@@ -60,20 +87,27 @@ class TransferEvents:
                     f"Calling {callback.__name__}"
                 )
 
-                callback(**data)
+                callback(
+                    **data
+                )
 
             except Exception as error:
 
                 logger.exception(
-                    f"Transfer event '{event_name}' failed: {error}"
+                    f"Transfer event "
+                    f"'{event_name}' failed: "
+                    f"{error}"
                 )
 
 
     #
-    # Convenience methods
+    # Transfer events
     #
 
-    def started(self, **data):
+    def started(
+        self,
+        **data
+    ):
 
         logger.info(
             "TransferEvents.started() called"
@@ -85,7 +119,10 @@ class TransferEvents:
         )
 
 
-    def progress(self, **data):
+    def progress(
+        self,
+        **data
+    ):
 
         logger.info(
             "TransferEvents.progress() called"
@@ -97,7 +134,10 @@ class TransferEvents:
         )
 
 
-    def finished(self, **data):
+    def finished(
+        self,
+        **data
+    ):
 
         logger.info(
             "TransferEvents.finished() called"
@@ -109,7 +149,10 @@ class TransferEvents:
         )
 
 
-    def failed(self, **data):
+    def failed(
+        self,
+        **data
+    ):
 
         logger.info(
             "TransferEvents.failed() called"

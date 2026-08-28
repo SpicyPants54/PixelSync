@@ -1,3 +1,4 @@
+from collections import deque
 from pathlib import Path
 import subprocess
 import time
@@ -19,9 +20,20 @@ class TransferManager:
         self.config = config
         self.events = events or TransferEvents()
 
-        # Used by device monitor to avoid reacting
-        # to transport changes during active transfers
+        # Used by DeviceMonitor to avoid reacting
+        # to transport changes during an active transfer.
         self.active_transfer = False
+
+        # Progress polling interval.
+        self.progress_interval = 0.5
+
+        # Log a warning if the remote file stops growing
+        # for this many seconds.
+        self.stall_warning_seconds = 30
+
+        # Number of samples used to smooth transfer speed.
+        self.speed_sample_count = 8
+
 
     def wait_for_device_ready(
         self,
@@ -46,7 +58,8 @@ class TransferManager:
                         "get-state"
                     ],
                     capture_output=True,
-                    text=True
+                    text=True,
+                    timeout=10
                 )
 
             except Exception as error:
@@ -74,6 +87,7 @@ class TransferManager:
 
         return False
 
+
     def refresh_connection(self):
 
         old = self.adb.device
@@ -98,6 +112,145 @@ class TransferManager:
 
         return False
 
+
+    def get_remote_file_size(
+        self,
+        device,
+        remote_path
+    ):
+        """
+        Return the current size of the destination file.
+
+        ADB on the tested Pixel device writes directly to
+        the final destination path, allowing us to monitor
+        the file size while the transfer is in progress.
+
+        Returns None if the file does not exist or the size
+        cannot be determined.
+        """
+
+        try:
+
+            result = subprocess.run(
+                [
+                    self.adb.adb_path,
+                    "-s",
+                    device,
+                    "shell",
+                    "stat",
+                    "-c",
+                    "%s",
+                    remote_path
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+
+            if result.returncode != 0:
+
+                return None
+
+            output = result.stdout.strip()
+
+            if not output:
+
+                return None
+
+            return int(output)
+
+        except (
+            ValueError,
+            subprocess.TimeoutExpired
+        ):
+
+            return None
+
+        except Exception as error:
+
+            logger.debug(
+                f"Unable to read remote file size "
+                f"for {remote_path}: {error}"
+            )
+
+            return None
+
+
+    def calculate_progress_speed(
+        self,
+        samples
+    ):
+        """
+        Calculate a smoothed transfer speed in MB/s using
+        the oldest and newest progress samples.
+        """
+
+        if len(samples) < 2:
+
+            return 0
+
+        oldest_time, oldest_bytes = samples[0]
+
+        newest_time, newest_bytes = samples[-1]
+
+        time_delta = (
+            newest_time
+            -
+            oldest_time
+        )
+
+        bytes_delta = (
+            newest_bytes
+            -
+            oldest_bytes
+        )
+
+        if (
+            time_delta <= 0
+            or bytes_delta <= 0
+        ):
+
+            return 0
+
+        return (
+            bytes_delta
+            /
+            time_delta
+            /
+            1024
+            /
+            1024
+        )
+
+
+    def is_transport_error(
+        self,
+        error
+    ):
+        """
+        Return True if an ADB error appears to indicate that
+        the device connection or transport was lost.
+        """
+
+        error = error.lower()
+
+        indicators = [
+            "device offline",
+            "device not found",
+            "device unauthorized",
+            "transport",
+            "connection reset",
+            "connection refused",
+            "no devices",
+            "closed"
+        ]
+
+        return any(
+            indicator in error
+            for indicator in indicators
+        )
+
+
     def push_file(
         self,
         file_path,
@@ -106,9 +259,22 @@ class TransferManager:
         file_path = Path(file_path)
 
         if destination is None:
-            destination = self.config.pixel_folder
 
-        total_size = file_path.stat().st_size
+            destination = (
+                self.config.pixel_folder
+            )
+
+        total_size = (
+            file_path.stat().st_size
+        )
+
+        remote_path = (
+            destination.rstrip("/")
+            +
+            "/"
+            +
+            file_path.name
+        )
 
         attempt = 1
 
@@ -133,6 +299,7 @@ class TransferManager:
                 )
 
                 attempt += 1
+
                 continue
 
             if not self.wait_for_device_ready(
@@ -142,6 +309,7 @@ class TransferManager:
                 self.refresh_connection()
 
                 attempt += 1
+
                 continue
 
             logger.info(
@@ -174,87 +342,22 @@ class TransferManager:
                     text=True
                 )
 
-                last_percent = -1
-
                 while process.poll() is None:
 
-                    elapsed = (
-                        time.time()
-                        -
-                        start_time
+                    #
+                    # Do not issue a second ADB command while
+                    # `adb push` owns the transport. On the target
+                    # Pixel this caused remote `stat` polling to
+                    # block and left ADB worker processes hung.
+                    #
+                    # This ADB version does not offer a supported
+                    # live-progress mode for `push`, so completion
+                    # telemetry below is the reliable signal.
+                    #
+
+                    time.sleep(
+                        self.progress_interval
                     )
-
-                    if elapsed > 0:
-
-                        # ADB push does not provide
-                        # reliable machine-readable
-                        # progress, so this is an
-                        # estimated progress display.
-
-                        transferred = min(
-                            total_size,
-                            int(
-                                total_size
-                                *
-                                min(
-                                    elapsed / 5,
-                                    1
-                                )
-                            )
-                        )
-
-                        percent = int(
-                            transferred
-                            /
-                            total_size
-                            *
-                            100
-                        )
-
-                        speed = (
-                            transferred
-                            /
-                            elapsed
-                            /
-                            1024
-                            /
-                            1024
-                        )
-
-                        remaining = max(
-                            total_size
-                            -
-                            transferred,
-                            0
-                        )
-
-                        eta = (
-                            remaining
-                            /
-                            (
-                                speed
-                                *
-                                1024
-                                *
-                                1024
-                            )
-                            if speed > 0
-                            else 0
-                        )
-
-                        if percent != last_percent:
-
-                            self.events.progress(
-                                filename=file_path.name,
-                                transferred=transferred,
-                                percent=percent,
-                                speed=speed,
-                                eta=eta
-                            )
-
-                            last_percent = percent
-
-                    time.sleep(0.25)
 
                 stdout, stderr = (
                     process.communicate(
@@ -291,15 +394,9 @@ class TransferManager:
 
                     logger.info(
                         f"Transfer complete: "
-                        f"{file_path.name}"
-                    )
-
-                    remote_path = (
-                        destination.rstrip("/")
-                        +
-                        "/"
-                        +
-                        file_path.name
+                        f"{file_path.name} "
+                        f"in {elapsed:.2f}s "
+                        f"({speed:.2f} MB/s)"
                     )
 
                     self.scan_media(
@@ -317,6 +414,7 @@ class TransferManager:
                 error = stderr.strip()
 
                 if not error:
+
                     error = (
                         stdout.strip()
                         or
@@ -328,12 +426,8 @@ class TransferManager:
                     f"{error}"
                 )
 
-                if (
-                    "device" in error.lower()
-                    or
-                    "offline" in error.lower()
-                    or
-                    "transport" in error.lower()
+                if self.is_transport_error(
+                    error
                 ):
 
                     self.refresh_connection()
@@ -355,6 +449,7 @@ class TransferManager:
                         )
 
                     except Exception:
+
                         pass
 
             except Exception as error:
@@ -396,6 +491,7 @@ class TransferManager:
 
         return False
 
+
     def scan_media(
         self,
         device,
@@ -412,7 +508,10 @@ class TransferManager:
                     "am",
                     "broadcast",
                     "-a",
-                    "android.intent.action.MEDIA_SCANNER_SCAN_FILE",
+                    (
+                        "android.intent.action."
+                        "MEDIA_SCANNER_SCAN_FILE"
+                    ),
                     "-d",
                     f"file://{path}"
                 ],
