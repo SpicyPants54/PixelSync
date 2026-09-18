@@ -207,3 +207,39 @@ class Settings:
         logger.info(
             f"Saved WiFi address: {address}"
         )
+
+
+    @property
+    def iphone_import_enabled(self):
+
+        return self.data.get(
+            "iphone_import",
+            {}
+        ).get(
+            "enabled",
+            False
+        )
+
+
+    @property
+    def iphone_poll_interval(self):
+
+        return self.data.get(
+            "iphone_import",
+            {}
+        ).get(
+            "poll_interval_seconds",
+            60
+        )
+
+
+    @property
+    def iphone_max_files_per_cycle(self):
+
+        return self.data.get(
+            "iphone_import",
+            {}
+        ).get(
+            "max_files_per_cycle",
+            10
+        )

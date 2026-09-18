@@ -15,6 +15,9 @@ from app.adb.device_monitor import DeviceMonitor
 from app.importer.queue import TransferQueue
 from app.importer.folder_watcher import FolderWatcher
 from app.importer.processor import QueueProcessor
+from app.importer.iphone_connector import IPhoneConnector
+from app.importer.iphone_importer import IPhoneImporter
+from app.importer.iphone_monitor import IPhoneImportMonitor
 
 
 class PixelSyncApp:
@@ -80,6 +83,7 @@ class PixelSyncApp:
         self.watcher = None
         self.processor = None
         self.device_monitor = None
+        self.iphone_monitor = None
 
 
         #
@@ -124,6 +128,42 @@ class PixelSyncApp:
         )
 
         self.watcher.start()
+
+
+        #
+        # Optional local iPhone source
+        #
+
+        if self.config.iphone_import_enabled:
+
+            iphone_connector = IPhoneConnector()
+
+            if iphone_connector.tools_available():
+
+                iphone_importer = IPhoneImporter(
+                    iphone_connector,
+                    self.config.import_folder
+                )
+
+                self.iphone_monitor = IPhoneImportMonitor(
+                    iphone_importer,
+                    poll_interval=(
+                        self.config.iphone_poll_interval
+                    ),
+                    max_files_per_cycle=(
+                        self.config.iphone_max_files_per_cycle
+                    )
+                )
+
+                self.iphone_monitor.start()
+
+            else:
+
+                logger.warning(
+                    "iPhone import is enabled but "
+                    "libimobiledevice tools are "
+                    "not available"
+                )
 
 
         #
