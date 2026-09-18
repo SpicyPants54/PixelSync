@@ -11,6 +11,9 @@ venv/
 build/
 dist/
 
+# Locally provisioned third-party tools
+tools/
+
 # IDE
 .vscode/
 .idea/
