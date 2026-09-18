@@ -803,6 +803,67 @@ class ADBManager:
 
 
     #
+    # Device storage
+    #
+
+    def get_storage_info(self):
+
+        if not self.device:
+
+            return None
+
+        result = self._run_adb(
+            "-s",
+            self.device,
+            "shell",
+            "df",
+            "-k",
+            "/storage/emulated/0",
+            timeout=10
+        )
+
+        if not result or result.returncode != 0:
+
+            return None
+
+        for line in reversed(
+            result.stdout.splitlines()
+        ):
+
+            fields = line.split()
+
+            if len(fields) < 6:
+
+                continue
+
+            try:
+
+                total_kb = int(fields[1])
+                used_kb = int(fields[2])
+                free_kb = int(fields[3])
+                used_percent = int(
+                    fields[4].rstrip("%")
+                )
+
+            except ValueError:
+
+                continue
+
+            return {
+                "total_bytes": total_kb * 1024,
+                "used_bytes": used_kb * 1024,
+                "free_bytes": free_kb * 1024,
+                "used_percent": used_percent,
+            }
+
+        logger.warning(
+            "Unable to parse Pixel storage information"
+        )
+
+        return None
+
+
+    #
     # Transport
     #
 

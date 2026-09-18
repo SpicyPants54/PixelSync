@@ -163,3 +163,27 @@ def test_queue_marks_job_failed_after_max_attempts(tmp_path):
     assert queue.count_failed() == 1
 
     assert queue.get_next() is None
+
+
+def test_queue_notifies_active_job_count(tmp_path):
+
+    session_factory = create_database(tmp_path / "queue-state.db")
+
+    counts = []
+
+    queue = TransferQueue(
+        session_factory(),
+        on_change=counts.append,
+    )
+
+    media = tmp_path / "state.jpg"
+
+    media.write_bytes(b"photo")
+
+    assert queue.add(media)
+
+    assert queue.get_next() == media.resolve()
+
+    assert queue.complete(media)
+
+    assert counts == [0, 1, 1, 0]

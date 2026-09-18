@@ -58,7 +58,8 @@ class PixelSyncApp:
         #
 
         self.queue = TransferQueue(
-            self.session
+            self.session,
+            on_change=self.on_queue_changed
         )
 
         self.history = TransferHistory(
@@ -222,6 +223,20 @@ class PixelSyncApp:
 
 
     #
+    # Queue state handler
+    #
+
+    def on_queue_changed(
+        self,
+        count
+    ):
+
+        self.state.set_queue_count(
+            count
+        )
+
+
+    #
     # Device state handler
     #
 
@@ -230,15 +245,30 @@ class PixelSyncApp:
         connected,
         serial="",
         model="",
-        transport=""
+        transport="",
+        storage=None
     ):
 
         if connected:
 
+            storage_cleanup_recommended = bool(
+                storage
+                and
+                storage.get(
+                    "free_bytes",
+                    0
+                )
+                <= self.config.storage_warning_threshold_bytes
+            )
+
             self.state.device_connected(
                 serial=serial,
                 model=model,
-                transport=transport
+                transport=transport,
+                storage=storage,
+                storage_cleanup_recommended=(
+                    storage_cleanup_recommended
+                )
             )
 
         else:

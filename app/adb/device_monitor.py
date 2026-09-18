@@ -179,6 +179,16 @@ class DeviceMonitor:
 
         model = self.adb.get_model()
 
+        storage = None
+
+        if not (
+            self.transfer
+            and
+            self.transfer.active_transfer
+        ):
+
+            storage = self.adb.get_storage_info()
+
 
         if model:
 
@@ -194,7 +204,8 @@ class DeviceMonitor:
             connected=True,
             serial=serial or "",
             model=model or "",
-            transport=transport or ""
+            transport=transport or "",
+            storage=storage
         )
 
 
@@ -203,7 +214,8 @@ class DeviceMonitor:
         connected,
         serial="",
         model="",
-        transport=""
+        transport="",
+        storage=None
     ):
 
         if not self.callback:
@@ -213,11 +225,19 @@ class DeviceMonitor:
 
         try:
 
+            data = {
+                "connected": connected,
+                "serial": serial,
+                "model": model,
+                "transport": transport,
+            }
+
+            if storage is not None:
+
+                data["storage"] = storage
+
             self.callback(
-                connected=connected,
-                serial=serial,
-                model=model,
-                transport=transport
+                **data
             )
 
 

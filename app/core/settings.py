@@ -119,6 +119,22 @@ class Settings:
         return self.data["transfer"]["retry_delay_seconds"]
 
 
+    @property
+    def storage_warning_threshold_bytes(self):
+
+        threshold_gb = self.data.get(
+            "storage",
+            {}
+        ).get(
+            "warning_threshold_gb",
+            5
+        )
+
+        return int(
+            threshold_gb
+        ) * 1024 * 1024 * 1024
+
+
 
     @property
     def prefer_usb(self):

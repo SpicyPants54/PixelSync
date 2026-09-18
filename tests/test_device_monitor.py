@@ -31,6 +31,10 @@ class FakeADB:
 
         return "Pixel 2"
 
+    def get_storage_info(self):
+
+        return None
+
 
 def test_monitor_restores_usb_through_adb_manager(monkeypatch):
 

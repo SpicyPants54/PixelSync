@@ -13,9 +13,11 @@ class TransferQueue:
 
     def __init__(
         self,
-        session=None
+        session=None,
+        on_change=None
     ):
         self.session = session
+        self.on_change = on_change
 
         self.lock = RLock()
 
@@ -24,6 +26,25 @@ class TransferQueue:
         )
 
         self.recover_interrupted_jobs()
+
+
+    def notify_change(self):
+
+        if not self.on_change:
+
+            return
+
+        try:
+
+            self.on_change(
+                self.count_total_active()
+            )
+
+        except Exception as error:
+
+            logger.exception(
+                f"Transfer queue callback failed: {error}"
+            )
 
 
     #
@@ -89,6 +110,8 @@ class TransferQueue:
                         "No interrupted transfer jobs "
                         "to recover"
                     )
+
+                self.notify_change()
 
             except Exception as error:
 
@@ -200,6 +223,8 @@ class TransferQueue:
                         f"{file.name}"
                     )
 
+                    self.notify_change()
+
                     return True
 
 
@@ -224,6 +249,8 @@ class TransferQueue:
                     f"transfer queue: "
                     f"{file.name}"
                 )
+
+                self.notify_change()
 
                 return True
 
@@ -313,6 +340,8 @@ class TransferQueue:
                             f"{job.filename}"
                         )
 
+                        self.notify_change()
+
                         continue
 
 
@@ -347,6 +376,8 @@ class TransferQueue:
                         f"(attempt {job.attempts}/"
                         f"{self.MAX_ATTEMPTS})"
                     )
+
+                    self.notify_change()
 
                     return file
 
@@ -425,6 +456,8 @@ class TransferQueue:
                     f"Transfer queue job completed: "
                     f"{file.name}"
                 )
+
+                self.notify_change()
 
                 return True
 
@@ -538,6 +571,8 @@ class TransferQueue:
 
 
                 self.session.commit()
+
+                self.notify_change()
 
                 return True
 

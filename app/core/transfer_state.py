@@ -35,6 +35,16 @@ class TransferState:
             "device_model": "",
             "device_transport": "",
 
+            "storage_total_bytes": 0,
+
+            "storage_used_bytes": 0,
+
+            "storage_free_bytes": 0,
+
+            "storage_used_percent": 0,
+
+            "storage_cleanup_recommended": False,
+
 
             #
             # Current transfer
@@ -197,7 +207,9 @@ class TransferState:
         connected,
         serial="",
         model="",
-        transport=""
+        transport="",
+        storage=None,
+        storage_cleanup_recommended=False
     ):
 
         with self._lock:
@@ -224,6 +236,50 @@ class TransferState:
                     "device_transport"
                 ] = transport
 
+            if storage is not None:
+
+                self._state[
+                    "storage_total_bytes"
+                ] = int(
+                    storage.get(
+                        "total_bytes",
+                        0
+                    )
+                )
+
+                self._state[
+                    "storage_used_bytes"
+                ] = int(
+                    storage.get(
+                        "used_bytes",
+                        0
+                    )
+                )
+
+                self._state[
+                    "storage_free_bytes"
+                ] = int(
+                    storage.get(
+                        "free_bytes",
+                        0
+                    )
+                )
+
+                self._state[
+                    "storage_used_percent"
+                ] = int(
+                    storage.get(
+                        "used_percent",
+                        0
+                    )
+                )
+
+                self._state[
+                    "storage_cleanup_recommended"
+                ] = bool(
+                    storage_cleanup_recommended
+                )
+
 
         logger.info(
             "Device state updated: "
@@ -240,14 +296,20 @@ class TransferState:
         self,
         serial="",
         model="",
-        transport=""
+        transport="",
+        storage=None,
+        storage_cleanup_recommended=False
     ):
 
         self.set_device(
             connected=True,
             serial=serial,
             model=model,
-            transport=transport
+            transport=transport,
+            storage=storage,
+            storage_cleanup_recommended=(
+                storage_cleanup_recommended
+            )
         )
 
 
@@ -262,6 +324,26 @@ class TransferState:
             self._state[
                 "device_transport"
             ] = ""
+
+            self._state[
+                "storage_total_bytes"
+            ] = 0
+
+            self._state[
+                "storage_used_bytes"
+            ] = 0
+
+            self._state[
+                "storage_free_bytes"
+            ] = 0
+
+            self._state[
+                "storage_used_percent"
+            ] = 0
+
+            self._state[
+                "storage_cleanup_recommended"
+            ] = False
 
         logger.warning(
             "Device disconnected"
